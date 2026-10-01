@@ -5,7 +5,7 @@ total = float(input("Total cost ($): "))
 
 # 2. PROCESSING
 dist_cost = total - base
-miles = dist_cost / rate
+x = dist_cost / rate
 
 # 3. OUTPUT
-print("The client traveled:", miles, "miles.")
+print("The client traveled:", x, "miles.")
