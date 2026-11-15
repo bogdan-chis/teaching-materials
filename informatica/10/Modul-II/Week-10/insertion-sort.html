@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interchange Sort – step by step</title>
+<style>
+  :root {
+    --bg: #0D1322; --card: #151F33; --term: #0A0F1D;
+    --cyan: #38BDF8; --blue: #3B82F6; --yellow: #FBBF24;
+    --green: #10B981; --red: #EF4444; --text: #FFFFFF; --muted: #CBD5E1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.45; padding: 20px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: .95rem; }
+  .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border-radius: 10px; padding: 16px; }
+
+  /* array stage */
+  .stage { position: relative; height: 270px; margin-top: 6px; }
+  .item {
+    position: absolute; bottom: 52px; width: 56px;
+    transition: left .55s cubic-bezier(.4,.1,.2,1), background .25s, box-shadow .25s;
+    border-radius: 6px 6px 0 0; background: var(--blue);
+    display: flex; align-items: flex-start; justify-content: center;
+    font-weight: 700; font-size: 1.05rem; padding-top: 6px;
+  }
+  .item.cmp-i { background: var(--cyan); color: #04202e; }
+  .item.cmp-j { background: var(--yellow); color: #2b1d00; }
+  .item.swapping { background: var(--red); box-shadow: 0 0 0 3px rgba(239,68,68,.35); }
+  .item.sorted { background: var(--green); color: #022b1e; }
+  .idx {
+    position: absolute; bottom: 28px; width: 56px; text-align: center;
+    color: var(--muted); font-size: .85rem; transition: left .55s cubic-bezier(.4,.1,.2,1);
+  }
+  .slot { position: absolute; bottom: 28px; width: 56px; text-align: center; color: var(--muted); font-size: .85rem; }
+  .ptr {
+    position: absolute; bottom: 4px; width: 56px; text-align: center;
+    font-weight: 700; font-size: .95rem; transition: left .35s, opacity .2s;
+  }
+  .ptr.i { color: var(--cyan); }
+  .ptr.j { color: var(--yellow); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; color: var(--muted); margin-top: 10px; }
+  .legend span::before {
+    content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 3px;
+    margin-right: 6px; vertical-align: -1px; background: var(--c);
+  }
+
+  /* message */
+  .msg {
+    min-height: 3.4em; margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+    background: var(--term); border-left: 4px solid var(--cyan); font-size: .98rem;
+  }
+  .msg.swap { border-left-color: var(--red); }
+  .msg.keep { border-left-color: var(--muted); }
+  .msg.done { border-left-color: var(--green); }
+  code, .code { font-family: Consolas, "Courier New", monospace; }
+  .msg code { color: var(--yellow); }
+
+  /* controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+  button {
+    background: var(--term); color: var(--text); border: 1px solid rgba(56,189,248,.35);
+    padding: 8px 14px; border-radius: 8px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--cyan); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--cyan); color: #04202e; border-color: var(--cyan); font-weight: 700; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+  label { color: var(--muted); font-size: .85rem; display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  input[type=range] { accent-color: var(--cyan); width: 110px; }
+  .progress { height: 5px; background: var(--term); border-radius: 3px; margin-top: 14px; overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: var(--cyan); transition: width .3s; }
+
+  /* code */
+  .term { background: var(--term); border: 1px solid rgba(56,189,248,.3); border-radius: 10px; padding: 12px 0; }
+  .dots { padding: 0 14px 8px; font-size: .8rem; letter-spacing: 3px; }
+  .dots b:nth-child(1){color:var(--red)} .dots b:nth-child(2){color:var(--yellow)} .dots b:nth-child(3){color:var(--green)}
+  .line { padding: 3px 14px; font-size: .9rem; white-space: pre; border-left: 3px solid transparent; }
+  .line.on { background: rgba(56,189,248,.14); border-left-color: var(--cyan); }
+  .line.on.sw { background: rgba(239,68,68,.16); border-left-color: var(--red); }
+  .kw { color: var(--cyan); font-weight: 700; }
+
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+  .stat { background: var(--term); border-radius: 8px; padding: 10px 12px; }
+  .stat small { color: var(--muted); display: block; font-size: .78rem; }
+  .stat strong { font-size: 1.35rem; }
+  .vars { margin-top: 12px; color: var(--muted); font-size: .9rem; }
+  .vars b.i { color: var(--cyan); } .vars b.j { color: var(--yellow); }
+  .arr { margin-top: 12px; font-size: .95rem; }
+  .arr .code { color: var(--green); }
+  @media (prefers-reduced-motion: reduce) { .item, .idx, .ptr { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interchange sort, step by step</h1>
+  <p class="sub">Every element v[i] is compared with all the elements after it. Whenever v[i] &gt; v[j], they swap.</p>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <div class="stage" id="stage" aria-label="Array visualization"></div>
+        <div class="legend">
+          <span style="--c:var(--cyan)">v[i], the current position</span>
+          <span style="--c:var(--yellow)">v[j], the element it is compared with</span>
+          <span style="--c:var(--red)">swapping</span>
+          <span style="--c:var(--green)">in its final place</span>
+        </div>
+        <div class="msg" id="msg" aria-live="polite"></div>
+        <div class="progress"><div id="bar"></div></div>
+        <div class="controls">
+          <button id="reset">Reset</button>
+          <button id="prev">&#9664; Back</button>
+          <button id="play" class="primary">&#9654; Play</button>
+          <button id="next">Next &#9654;</button>
+          <label>Speed <input type="range" id="speed" min="1" max="5" value="3"></label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="term">
+        <div class="dots"><b>&bull;</b><b>&bull;</b><b>&bull;</b></div>
+        <div class="line code" id="L0"><span class="kw">for</span> (<span class="kw">int</span> i = 1; i &lt; n; i++)</div>
+        <div class="line code" id="L1">    <span class="kw">for</span> (<span class="kw">int</span> j = i + 1; j &lt;= n; j++)</div>
+        <div class="line code" id="L2">        <span class="kw">if</span> (v[i] &gt; v[j])</div>
+        <div class="line code" id="L3">            <span class="kw">swap</span>(v[i], v[j]);</div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="vars code" id="vars"></div>
+        <div class="stats">
+          <div class="stat"><small>Comparisons</small><strong id="cmpN">0</strong></div>
+          <div class="stat"><small>Swaps</small><strong id="swN">0</strong></div>
+        </div>
+        <div class="arr">Array: <span class="code" id="arrTxt"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var START = [5, 2, 9, 1, 7, 3, 6];   // 7 numbers, change them to try another example
+  var n = START.length;
+  var W = 56, GAP = 18;                 // bar width and spacing
+  var MAXV = Math.max.apply(null, START);
+
+  /* ---------- precompute every frame ---------- */
+  var frames = [];
+  var order = START.map(function (_, k) { return k; }); // order[pos] = element id
+  var comps = 0, swaps = 0, sortedCount = 0;
+
+  function val(pos) { return START[order[pos - 1]]; }
+  function snap(extra) {
+    var f = { order: order.slice(), comps: comps, swaps: swaps, sorted: sortedCount,
+              i: null, j: null, phase: 'info', line: -1, msg: '', kind: '' };
+    for (var k in extra) f[k] = extra[k];
+    frames.push(f);
+  }
+
+  snap({ msg: 'Start: the array has <code>n = ' + n + '</code> elements. We will go through every pair (i, j) with i &lt; j.' });
+
+  for (var i = 1; i < n; i++) {
+    for (var j = i + 1; j <= n; j++) {
+      comps++;
+      var a = val(i), b = val(j);
+      snap({ i: i, j: j, phase: 'compare', line: 2,
+             msg: 'Compare <code>v[' + i + '] = ' + a + '</code> with <code>v[' + j + '] = ' + b +
+                  '</code>. Is ' + a + ' &gt; ' + b + '? ' + (a > b ? 'Yes.' : 'No.') });
+      if (a > b) {
+        var t = order[i - 1]; order[i - 1] = order[j - 1]; order[j - 1] = t;
+        swaps++;
+        snap({ i: i, j: j, phase: 'swap', line: 3, kind: 'swap',
+               msg: '<b>Swap!</b> ' + a + ' is bigger than ' + b + ', so they trade places. Now <code>v[' + i + '] = ' + b + '</code>.' });
+      } else {
+        snap({ i: i, j: j, phase: 'keep', line: 2, kind: 'keep',
+               msg: 'No swap, ' + a + ' is not bigger than ' + b + '. Move on to the next <code>j</code>.' });
+      }
+    }
+    sortedCount = i;
+    snap({ i: i, phase: 'fixed', line: 0,
+           msg: 'The inner loop is over. <code>v[' + i + '] = ' + val(i) + '</code> is the smallest of the remaining elements, so it is in its final place.' });
+  }
+  sortedCount = n;
+  snap({ phase: 'done', kind: 'done',
+         msg: 'Done! The array is sorted in ascending order after <b>' + comps + '</b> comparisons and <b>' + swaps + '</b> swaps. ' +
+              'Note that the number of comparisons is always n(n&minus;1)/2 = ' + (n * (n - 1) / 2) + '.' });
+
+  /* ---------- build the stage ---------- */
+  var stage = document.getElementById('stage');
+  var items = [], slots = [];
+  function leftOf(pos) { return pos * (W + GAP) + 10; }   // pos is 0-based
+
+  START.forEach(function (v, id) {
+    var d = document.createElement('div');
+    d.className = 'item';
+    d.style.height = (30 + v / MAXV * 150) + 'px';
+    d.textContent = v;
+    stage.appendChild(d);
+    items.push(d);
+  });
+  for (var p = 0; p < n; p++) {
+    var s = document.createElement('div');
+    s.className = 'slot'; s.style.left = leftOf(p) + 'px'; s.textContent = p + 1;
+    stage.appendChild(s);
+  }
+  var ptrI = document.createElement('div'); ptrI.className = 'ptr i'; ptrI.textContent = 'i';
+  var ptrJ = document.createElement('div'); ptrJ.className = 'ptr j'; ptrJ.textContent = 'j';
+  stage.appendChild(ptrI); stage.appendChild(ptrJ);
+
+  var $ = function (id) { return document.getElementById(id); };
+  var cur = 0;
+
+  function render() {
+    var f = frames[cur];
+    // position & colours
+    f.order.forEach(function (id, pos) { items[id].style.left = leftOf(pos) + 'px'; });
+    items.forEach(function (el) { el.className = 'item'; });
+    f.order.forEach(function (id, pos) {
+      var el = items[id], p1 = pos + 1;
+      if (p1 <= f.sorted) el.classList.add('sorted');
+      if (f.i === p1 && f.phase !== 'fixed' && f.phase !== 'done') el.classList.add(f.phase === 'swap' ? 'swapping' : 'cmp-i');
+      if (f.j === p1) el.classList.add(f.phase === 'swap' ? 'swapping' : 'cmp-j');
+    });
+    // pointers
+    ptrI.style.opacity = (f.i && f.phase !== 'done') ? 1 : 0;
+    ptrJ.style.opacity = f.j ? 1 : 0;
+    if (f.i) ptrI.style.left = leftOf(f.i - 1) + 'px';
+    if (f.j) ptrJ.style.left = leftOf(f.j - 1) + 'px';
+    if (f.i && f.j && f.i === f.j) ptrI.style.left = leftOf(f.i - 1) + 'px';
+    // message
+    var m = $('msg'); m.innerHTML = f.msg; m.className = 'msg ' + f.kind;
+    // code highlight
+    for (var k = 0; k < 4; k++) $('L' + k).className = 'line code';
+    if (f.line >= 0) {
+      $('L' + f.line).classList.add('on');
+      if (f.line === 3) $('L3').classList.add('sw');
+      if (f.line === 2 || f.line === 3) $('L1').classList.add('on');
+    }
+    // stats
+    $('cmpN').textContent = f.comps; $('swN').textContent = f.swaps;
+    $('vars').innerHTML = 'i = <b class="i">' + (f.i && f.phase !== 'done' ? f.i : '-') + '</b>&nbsp;&nbsp; j = <b class="j">' + (f.j || '-') + '</b>';
+    $('arrTxt').textContent = '[' + f.order.map(function (id) { return START[id]; }).join(', ') + ']';
+    $('bar').style.width = (cur / (frames.length - 1) * 100) + '%';
+    $('prev').disabled = cur === 0; $('reset').disabled = cur === 0;
+    $('next').disabled = cur === frames.length - 1;
+    if (cur === frames.length - 1) stop();
+  }
+
+  /* ---------- controls ---------- */
+  var timer = null;
+  function delay() { return [1700, 1250, 900, 550, 300][+$('speed').value - 1]; }
+  function stop() { clearInterval(timer); timer = null; $('play').innerHTML = '&#9654; Play'; }
+  function tick() { if (cur < frames.length - 1) { cur++; render(); } else stop(); }
+  function play() {
+    if (cur === frames.length - 1) cur = 0;
+    $('play').innerHTML = '&#10074;&#10074; Pause';
+    render();
+    timer = setInterval(tick, delay());
+  }
+  $('play').onclick = function () { timer ? stop() : play(); };
+  $('next').onclick = function () { stop(); if (cur < frames.length - 1) { cur++; render(); } };
+  $('prev').onclick = function () { stop(); if (cur > 0) { cur--; render(); } };
+  $('reset').onclick = function () { stop(); cur = 0; render(); };
+  $('speed').oninput = function () { if (timer) { clearInterval(timer); timer = setInterval(tick, delay()); } };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') $('next').click();
+    else if (e.key === 'ArrowLeft') $('prev').click();
+    else if (e.key === ' ' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); $('play').click(); }
+  });
+
+  stage.style.width = leftOf(n) + 'px';
+  render();
+})();
+</script>
+</body>
+</html>
